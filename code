@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Phishing URL & Website Detector</title>
+  <meta name="description" content="Client-side phishing URL detector that flags risky patterns with a transparent scoring breakdown. For educational use only." />
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121821;
+      --panel-2: #18202b;
+      --text: #e8eef6;
+      --muted: #a7b3c6;
+      --accent: #6ea8fe;
+      --good: #6dd07f;
+      --warn: #ffd166;
+      --bad: #ff6b6b;
+      --border: #223042;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; background: linear-gradient(180deg, #0b0f14, #0d1219 50%, #0b0f14);
+      color: var(--text); font: 15px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    .wrap { max-width: 980px; margin: 40px auto; padding: 0 16px; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom: 20px; }
+    .brand { display:flex; align-items:center; gap:12px; }
+    .logo {
+      width: 42px; height: 42px; border-radius: 10px; background: radial-gradient(120% 120% at 30% 20%, #3b82f6 0, #0ea5e9 45%, #1e293b 90%);
+      box-shadow: var(--shadow);
+      position: relative;
+    }
+    .logo:after { content:""; position:absolute; inset:10px; border-radius:6px; background: linear-gradient(135deg, rgba(255,255,255,.15), rgba(255,255,255,0)); }
+    h1 { font-size: 20px; margin: 0; letter-spacing: .2px; }
+    .tag { color: var(--muted); font-size: 13px; }
+
+    .card {
+      background: linear-gradient(180deg, var(--panel), var(--panel-2));
+      border: 1px solid var(--border);
+      border-radius: 16px; box-shadow: var(--shadow);
+      padding: 18px; margin-bottom: 18px;
+    }
+
+    .input-row { display:flex; gap:10px; flex-wrap:wrap; }
+    input[type=url], input[type=text] { flex:1; min-width: 260px; padding: 14px 14px; border-radius: 12px; border:1px solid var(--border); background:#0f141b; color:var(--text); outline:none; }
+    input::placeholder { color:#7f8da3; }
+    button {
+      padding: 12px 16px; border:none; border-radius: 12px; color:#0b0f14; background:var(--accent); font-weight:600; cursor:pointer; box-shadow: var(--shadow);
+    }
+    button.secondary { background: #2d3a4e; color: var(--text); }
+    button:active { transform: translateY(1px); }
+
+    .row { display:grid; grid-template-columns: 1fr; gap:16px; }
+    @media (min-width: 900px){ .row { grid-template-columns: 1.2fr .8fr; } }
+
+    .score {
+      display:flex; align-items:center; gap:12px; margin-top: 8px;
+    }
+    progress { width: 100%; height: 14px; border-radius: 10px; overflow: hidden; }
+    progress::-webkit-progress-bar { background:#0f141b; border-radius:10px; }
+    progress::-webkit-progress-value { background: linear-gradient(90deg, #34d399, #fbbf24 60%, #ef4444 100%); border-radius:10px; }
+
+    .pill { display:inline-flex; align-items:center; gap:8px; padding:8px 10px; border-radius: 999px; font-size: 12px; border:1px solid var(--border); background:#0f141b; color:var(--muted); }
+
+    .status { font-weight:700; }
+
+    ul { list-style:none; padding:0; margin:0; }
+    .issue { display:flex; align-items:flex-start; gap:10px; padding:10px 0; border-bottom: 1px dashed #223042; }
+    .issue:last-child { border-bottom: none; }
+    .badge { width:26px; height:26px; border-radius:8px; display:grid; place-items:center; font-size: 14px; }
+    .badge.good { background:#14331b; color: var(--good); border:1px solid #1c6d30; }
+    .badge.warn { background:#3a300d; color: var(--warn); border:1px solid #8a6f1f; }
+    .badge.bad  { background:#3b0f0f; color: var(--bad);  border:1px solid #7a1f1f; }
+
+    .muted { color: var(--muted); }
+    .hint { font-size: 12px; color:#90a2bb; }
+
+    footer { color: #7d8aa1; font-size: 12px; margin: 26px 0 60px; text-align:center; }
+    a { color: #8ab4ff; text-decoration: none; }
+    .grid-two { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+
+    .mini { font-size: 12px; }
+    .kicker { font-size: 12px; color:#9eb2cf; text-transform: uppercase; letter-spacing: .14em; }
+    .list-compact li { padding:6px 0; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div>
+          <h1>Phishing URL & Website Detector</h1>
+          <div class="tag">Client-side analyzer with transparent scoring (educational use)</div>
+        </div>
+      </div>
+      <div class="pill" id="disclaimer-pill">⚠️ <span class="mini">Use responsibly • No live network calls</span></div>
+    </header>
+
+    <section class="card">
+      <div class="input-row">
+        <input id="urlInput" type="url" placeholder="Paste a URL to analyze (e.g., https://accounts.example.com/login?redirect=…)" />
+        <button id="analyzeBtn">Analyze URL</button>
+        <button id="sampleBtn" class="secondary" title="Try a suspicious example">Try sample</button>
+      </div>
+      <div class="hint" style="margin-top:8px">Tip: You can paste raw domains like <code>paypa1-login.security-check.com</code> — the tool will normalize them.</div>
+    </section>
+
+    <div class="row">
+      <section class="card" aria-live="polite" id="resultsCard">
+        <div class="kicker">Result</div>
+        <div class="score">
+          <div class="status" id="statusText">Awaiting input…</div>
+        </div>
+        <div style="margin-top:10px">
+          <progress id="scoreBar" value="0" max="100"></progress>
+          <div class="muted mini" style="margin-top:6px"><span id="scoreValue">0</span>/100 safety score</div>
+        </div>
+        <div style="margin-top:14px">
+          <ul id="issues"></ul>
+        </div>
+      </section>
+
+      <aside class="card">
+        <div class="kicker">What this checks</div>
+        <ul class="list-compact" style="margin-top:8px">
+          <li>HTTPS usage & certificate hint (no live fetch)</li>
+          <li>Known phishing patterns (@, IP host, excessive subdomains)</li>
+          <li>Suspicious TLDs & URL shorteners</li>
+          <li>Misspelled brand look‑alikes</li>
+          <li>Keyword traps (verify, secure, free‑gift…)</li>
+          <li>Overall transparent scoring</li>
+        </ul>
+        <div style="margin-top:14px" class="hint">
+          This is an educational static analyzer. It does <b>not</b> crawl or contact the target site. Combine with real threat intel for production use.
+        </div>
+        <div style="margin-top:16px" class="grid-two">
+          <button id="copyBtn" class="secondary">Copy breakdown</button>
+          <button id="resetBtn" class="secondary">Reset</button>
+        </div>
+      </aside>
+    </div>
+
+    <footer>
+      Built for learning. Do not use for unauthorized testing. Always get consent and follow the law.
+    </footer>
+  </div>
+
+  <script>
+    // --- Utility helpers ---
+    const KNOWN_BRANDS = ["google","paypal","apple","amazon","microsoft","github","facebook","netflix","instagram","whatsapp","telegram","snapchat","tiktok","bankofamerica","hdfc","icici","sbi","flipkart"];
+    const SUSPICIOUS_TLDS = ["zip","click","country","men","loan","tk","ml","ga","cf","gq","top","xyz","monster","work","asia","ru","cn"];
+    const SHORTENERS = ["bit.ly","t.co","tinyurl.com","goo.gl","ow.ly","is.gd","cutt.ly","buff.ly","rebrand.ly","shorturl.at"];
+    const LURE_KEYWORDS = ["secure","verify","update","login","signin","account","gift","free","bonus","win","prize","refund","support","unlock","limited","auth"];
+
+    function normalizeUrl(input) {
+      let v = (input || "").trim();
+      if (!v) return null;
+      // If it looks like a bare domain, prepend scheme
+      if (!/^https?:\/\//i.test(v)) v = "https://" + v;
+      try { return new URL(v); } catch { return null; }
+    }
+
+    function isIpHost(host) {
+      // IPv4 simple check
+      return /^((25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(25[0-5]|2[0-4]\d|1?\d?\d)$/.test(host);
+    }
+
+    function levenshtein(a,b){
+      a=a.toLowerCase(); b=b.toLowerCase();
+      const an=a.length, bn=b.length; if(!an) return bn; if(!bn) return an;
+      const arr = new Array(bn+1); for(let i=0;i<=bn;i++) arr[i]=i;
+      for(let i=1;i<=an;i++){
+        let prev=i, temp; arr[0]=i;
+        for(let j=1;j<=bn;j++){
+          temp = arr[j];
+          arr[j] = Math.min(
+            arr[j]+1,
+            arr[j-1]+1,
+            prev + (a[i-1]===b[j-1]?0:1)
+          );
+          prev=temp;
+        }
+      }
+      return arr[bn];
+    }
+
+    function containsHomoglyphTrick(host){
+      // Very lightweight: numbers in place of letters and punycode
+      if (/xn--/i.test(host)) return true; // IDN/possible homograph
+      const map = {"0":"o","1":"l","3":"e","4":"a","5":"s","7":"t"};
+      return Object.keys(map).some(d => host.includes(d) && host.replaceAll(d,map[d]).includes(map[d]));
+    }
+
+    function analyzeUrl(u) {
+      const issues = [];
+      let score = 100;
+
+      if (!u) return {score: 0, status: "No URL", issues:[{level:"bad", text:"Please enter a valid URL to analyze.", penalty:100}]};
+
+      const url = normalizeUrl(u);
+      if (!url) return {score: 0, status: "Invalid URL", issues:[{level:"bad", text:"The input doesn't look like a valid URL.", penalty:100}]};
+
+      const host = url.hostname.toLowerCase();
+      const hostParts = host.split(".");
+      const tld = hostParts[hostParts.length-1] || "";
+      const path = url.pathname + url.search + url.hash;
+      const full = url.href;
+
+      function flag(level, text, penalty){
+        issues.push({level, text, penalty});
+        score -= penalty;
+      }
+
+      // 1) Scheme
+      if (url.protocol !== "https:") flag("bad", "Connection is not HTTPS.", 25);
+      else issues.push({level:"good", text:"Uses HTTPS (good sign).", penalty: 0});
+
+      // 2) @ symbol and odd //
+      if (/@/.test(full)) flag("bad", "URL contains '@' which can hide real domain.", 12);
+      if (/[^:]\/\//.test(full.replace(/^https?:/i, ""))) flag("warn", "Multiple '//' segments beyond the protocol.", 6);
+
+      // 3) Host checks
+      if (isIpHost(host)) flag("bad","Hostname is a raw IP address (common in phishing).", 16);
+      if (hostParts.length >= 4) flag("warn","Excessive subdomains (" + hostParts.length + ").", 8);
+      if ((host.match(/-/g)||[]).length >= 2) flag("warn","Multiple hyphens in domain.", 6);
+      if (containsHomoglyphTrick(host)) flag("bad","Domain may use homoglyphs or IDN tricks (xn-- / number-for-letter).", 14);
+
+      // 4) TLD & shorteners
+      if (SUSPICIOUS_TLDS.includes(tld)) flag("warn","Top-level domain (."+tld+") is frequently abused.", 8);
+      if (SHORTENERS.some(s => host.endsWith(s))) flag("warn","URL shortener detected (domain masks destination).", 10);
+
+      // 5) Length & entropy-ish hints
+      if (full.length > 120) flag("warn","URL is very long (" + full.length + " chars).", 6);
+      if (/\d{10,}/.test(full)) flag("warn","Unusually long digit sequence present.", 6);
+
+      // 6) Lure keywords
+      const lureHits = LURE_KEYWORDS.filter(k => full.toLowerCase().includes(k));
+      if (lureHits.length) flag("warn","Potential lure keywords found: " + lureHits.slice(0,6).join(", ") + (lureHits.length>6?"…":""), 8);
+
+      // 7) Brand look-alikes
+      for (const brand of KNOWN_BRANDS){
+        const dist = levenshtein(host.replace(/\W/g, ''), brand);
+        if (host.includes(brand) && !host.endsWith(`${brand}.com`) && !host.endsWith(`${brand}.in`)){
+          flag("warn", `Domain references brand “${brand}” but isn't the official domain.`, 10);
+          break;
+        }
+        if (dist === 1 || dist === 2){
+          flag("bad", `Domain looks similar to “${brand}” (possible typosquat).`, 14);
+          break;
+        }
+      }
+
+      // 8) Query params tricks
+      const params = new URLSearchParams(url.search);
+      const redirectParams = ["redirect","url","next","dest","target","r","u"]; 
+      for (const p of redirectParams){
+        if (params.has(p)) { flag("warn", `Redirect parameter detected (?${p}=…).`, 6); break; }
+      }
+
+      // Clamp score
+      score = Math.max(0, Math.min(100, score));
+
+      // Status label
+      let status;
+      if (score >= 80) status = "Likely Safe";
+      else if (score >= 60) status = "Caution";
+      else if (score >= 40) status = "Suspicious";
+      else status = "Dangerous";
+
+      return { score, status, issues, normalized: url.href };
+    }
+
+    // --- UI wiring ---
+    const urlInput = document.getElementById('urlInput');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const sampleBtn = document.getElementById('sampleBtn');
+    const scoreBar = document.getElementById('scoreBar');
+    const scoreValue = document.getElementById('scoreValue');
+    const issuesList = document.getElementById('issues');
+    const statusText = document.getElementById('statusText');
+    const copyBtn = document.getElementById('copyBtn');
+    const resetBtn = document.getElementById('resetBtn');
+
+    function render(res){
+      issuesList.innerHTML = '';
+      scoreBar.value = res.score;
+      scoreValue.textContent = res.score;
+      statusText.textContent = `${res.status}${res.normalized?` • ${res.normalized}`:''}`;
+
+      res.issues.forEach(it => {
+        const li = document.createElement('li');
+        li.className = 'issue';
+        const badge = document.createElement('div');
+        badge.className = `badge ${it.level}`;
+        badge.textContent = it.level === 'good' ? '✓' : it.level === 'warn' ? '!' : '✖';
+        const text = document.createElement('div');
+        text.innerHTML = `<div>${it.text}</div><div class="hint">Penalty: ${it.penalty}</div>`;
+        li.appendChild(badge); li.appendChild(text);
+        issuesList.appendChild(li);
+      });
+
+      if (!res.issues.length){
+        const li = document.createElement('li');
+        li.className = 'issue';
+        li.innerHTML = '<div class="badge good">✓</div><div>No obvious red flags detected. Stay vigilant and verify source.</div>';
+        issuesList.appendChild(li);
+      }
+    }
+
+    function run(){ render(analyzeUrl(urlInput.value)); }
+    analyzeBtn.addEventListener('click', run);
+    urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
+    sampleBtn.addEventListener('click', () => {
+      urlInput.value = 'http://paypa1-login.secure-support-account-update.com/verify?redirect=https://paypal.com&gift=free';
+      run();
+    });
+    copyBtn.addEventListener('click', async () => {
+      const res = analyzeUrl(urlInput.value);
+      const lines = [
+        `Status: ${res.status} (score ${res.score}/100)`,
+        res.normalized ? `URL: ${res.normalized}` : '',
+        '',
+        'Findings:'
+      ].concat(res.issues.map(i => `- [${i.level.toUpperCase()}] ${i.text} (penalty ${i.penalty})`));
+      try { await navigator.clipboard.writeText(lines.join('\n')); copyBtn.textContent = 'Copied ✓'; setTimeout(()=>copyBtn.textContent='Copy breakdown',1500);} catch {}
+    });
+    resetBtn.addEventListener('click', () => {
+      urlInput.value = '';
+      issuesList.innerHTML = '';
+      scoreBar.value = 0; scoreValue.textContent = 0; statusText.textContent = 'Awaiting input…';
+    });
+
+    // Prefill from hash ?url=
+    (function(){
+      const h = new URLSearchParams(location.search);
+      const v = h.get('url');
+      if (v) { urlInput.value = v; run(); }
+    })();
+  </script>
+</body>
+</html>
