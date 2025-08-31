@@ -21,8 +21,5 @@ A simple yet effective **client-side web application** that detects potential ph
 ## 🛠️ Tech Stack
 - **HTML5** — structure  
 - **CSS3** — styling and responsive design  
-- **JavaScript** — phishing detection logic  
-
-
-## 📂 Project Structure
+- **JavaScript** — phishing detection logic.
 
